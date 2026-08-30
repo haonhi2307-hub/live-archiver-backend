@@ -7,6 +7,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 
 from .admin import router as admin_router
+from .update_router import router as update_router
 from .errors import ResolverError
 from .health import health_registry
 from .license import (
@@ -57,6 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Live Archiver Resolver", version="0.5.0", lifespan=lifespan)
 app.include_router(admin_router)
+app.include_router(update_router)
 
 
 def require_client_auth(
