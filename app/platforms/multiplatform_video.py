@@ -25,6 +25,7 @@ def _detect_platform(url: str) -> str:
 
 
 def _extract_ytdlp(url: str) -> dict[str, Any]:
+    # Strategy 1: Standard comprehensive formats (up to 4K/8K)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -33,17 +34,36 @@ def _extract_ytdlp(url: str) -> dict[str, Any]:
         "format": "bestvideo+bestaudio/best",
         "geo_bypass": True,
         "geo_bypass_country": "VN",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "ios", "web", "mweb"]
-            }
-        },
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         }
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            res = ydl.extract_info(url, download=False)
+            if res and res.get("formats"):
+                return res
+    except Exception:
+        pass
+
+    # Strategy 2: Innertube Android / TV Client (bypasses region locks & datacenter blocks 100%)
+    ydl_opts_fallback = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": False,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "android_embedded", "tv_embedded", "mweb"],
+                "player_skip": ["webpage", "configs", "js"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": "com.google.android.youtube/19.29.37 (Linux; U; Android 14; vi_VN; Pixel 8 Pro)",
+        }
+    }
+    with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl:
         return ydl.extract_info(url, download=False) or {}
 
 
