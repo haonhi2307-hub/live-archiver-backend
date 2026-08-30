@@ -1,9 +1,9 @@
-﻿{
+{
     "package_name":  "com.hao.livearchiver",
     "version_code":  17,
     "version_name":  "0.7.2",
     "minimum_supported_version_code":  14,
-    "apk_url":  "https://live-archiver.onrender.com/v1/app/download/LiveArchiver_v0.7.2.apk",
+    "apk_url":  "https://live-archiver-backend.onrender.com/v1/app/download/LiveArchiver_v0.7.2.apk",
     "apk_size":  21848361,
     "apk_sha256":  "ccfe1c2e88d2b811195552c075a1209c3af692b3b5d516d3b16d825d8ae2e29f",
     "signing_cert_sha256":  "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
