@@ -2,10 +2,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/v1/app", tags=["App Updater"])
@@ -117,11 +118,16 @@ async def download_apk(filename: str):
     safe_name = os.path.basename(filename)
     if not safe_name.endswith(".apk"):
         raise HTTPException(status_code=400, detail="Tên tệp APK không hợp lệ")
-    file_path = UPDATES_DIR / safe_name
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Không tìm thấy tệp APK")
-    return FileResponse(
-        path=str(file_path),
-        media_type="application/vnd.android.package-archive",
-        filename=safe_name
-    )
+
+    for p in [UPDATES_DIR / safe_name, Path(f"app/updates/{safe_name}"), Path(f"updates/{safe_name}"), Path(safe_name)]:
+        if p.exists():
+            return FileResponse(
+                path=str(p),
+                media_type="application/vnd.android.package-archive",
+                filename=safe_name
+            )
+
+    version_match = re.search(r"v?(\d+\.\d+\.\d+)", safe_name)
+    tag = f"v{version_match.group(1)}" if version_match else "v0.7.2"
+    release_url = f"https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/{tag}/{safe_name}"
+    return RedirectResponse(url=release_url, status_code=302)
