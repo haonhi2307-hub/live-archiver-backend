@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import re
@@ -105,10 +105,35 @@ async def resolve_douyin_video(raw_input: str) -> VideoResolveResult:
         duration_ms = video.get("duration")
         duration_sec = float(duration_ms) / 1000.0 if duration_ms else None
 
+        orig_w = int(video.get("width") or 1080)
+        orig_h = int(video.get("height") or 1920)
+        uri = (video.get("play_addr") or {}).get("uri") or ""
+
         renditions: list[VideoRendition] = []
-        bitrate_list = video.get("bit_rate") or []
         seen_urls: set[str] = set()
 
+        # TIER 1: Master Original High-Bitrate Stream (2160p 4K / 1440p 2K / 1080p Full HD)
+        if uri:
+            master_url = f"https://aweme.snssdk.com/aweme/v1/play/?video_id={uri}&ratio=1080p&line=0"
+            is_4k = orig_w >= 2160 or orig_h >= 2160
+            is_2k = orig_w >= 1440 or orig_h >= 1440
+            label = "4K Siêu Nét (2160p Gốc)" if is_4k else ("2K Siêu Nét (1440p Gốc)" if is_2k else "1080p Full HD (Chất Lượng Gốc)")
+            renditions.append(
+                VideoRendition(
+                    id=f"douyin_{item_id}_master",
+                    label=label,
+                    url=master_url,
+                    width=orig_w,
+                    height=orig_h,
+                    format="mp4",
+                    headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"},
+                    is_original=True,
+                    recommended=True,
+                )
+            )
+            seen_urls.add(master_url)
+
+        bitrate_list = video.get("bit_rate") or []
         if isinstance(bitrate_list, list) and bitrate_list:
             for idx, item in enumerate(bitrate_list):
                 if not isinstance(item, dict):
@@ -117,29 +142,17 @@ async def resolve_douyin_video(raw_input: str) -> VideoResolveResult:
                 urls = play_addr.get("url_list") or []
                 if not urls:
                     continue
-                best_url = urls[0].replace("playwm", "play")  # Ensure watermark-free
+                best_url = urls[0].replace("playwm", "play")
                 if best_url in seen_urls:
                     continue
                 seen_urls.add(best_url)
 
                 gear_name = str(item.get("gear_name") or "").lower()
-                quality_type = int(item.get("quality_type") or 0)
                 bit_rate = int(item.get("bit_rate") or 0)
-                w = int(play_addr.get("width") or video.get("width") or 0)
-                h = int(play_addr.get("height") or video.get("height") or 0)
+                w = int(play_addr.get("width") or 0)
+                h = int(play_addr.get("height") or 0)
 
-                is_4k = gear_name.startswith("4_") or "4k" in gear_name or "2160" in gear_name or w >= 3840 or h >= 3840
-                is_1080p = "1080" in gear_name or quality_type in (1, 2) or w >= 1080 or h >= 1080
-
-                if is_4k:
-                    label = "4K Siêu Nét (2160p HEVC)"
-                elif is_1080p:
-                    label = "1080p Full HD (Chất Lượng Gốc)"
-                elif w >= 720 or h >= 720:
-                    label = "720p HD"
-                else:
-                    label = f"{min(w, h)}p" if w and h else f"Chất lượng {idx + 1}"
-
+                label = f"720p HD ({w}x{h})" if w >= 720 or h >= 720 else f"SD ({w}x{h})"
                 renditions.append(
                     VideoRendition(
                         id=f"douyin_{item_id}_{idx}",
@@ -152,7 +165,7 @@ async def resolve_douyin_video(raw_input: str) -> VideoResolveResult:
                         format="mp4",
                         size_bytes=int(play_addr.get("data_size") or 0),
                         headers={"User-Agent": DEFAULT_HEADERS["User-Agent"], "Referer": "https://www.douyin.com/"},
-                        is_original=is_4k or (idx == 0),
+                        is_original=False,
                     )
                 )
 
@@ -166,8 +179,8 @@ async def resolve_douyin_video(raw_input: str) -> VideoResolveResult:
                         id=f"douyin_{item_id}_main",
                         label="1080p Full HD (Gốc Không Logo)",
                         url=best_url,
-                        width=int(video.get("width") or 1080),
-                        height=int(video.get("height") or 1920),
+                        width=orig_w,
+                        height=orig_h,
                         format="mp4",
                         headers={"User-Agent": DEFAULT_HEADERS["User-Agent"], "Referer": "https://www.douyin.com/"},
                         is_original=True,
