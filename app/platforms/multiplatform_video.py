@@ -25,51 +25,26 @@ def _detect_platform(url: str) -> str:
 
 
 def _extract_ytdlp(url: str) -> dict[str, Any]:
-    # Unified Extractor: bypasses region locks, datacenter IP blocks, and extracts best formats
+    # Bulletproof Android Mobile Innertube: skips webpage checks, passes datacenter bot guards
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "extract_flat": False,
-        "format": "bestvideo+bestaudio/best",
         "geo_bypass": True,
         "geo_bypass_country": "VN",
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios", "tv", "web", "mweb"],
-                "player_skip": ["configs", "js"],
-            }
-        },
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        },
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            res = ydl.extract_info(url, download=False)
-            if res and res.get("formats"):
-                return res
-    except Exception:
-        pass
-
-    # Fallback with dedicated Android player
-    ydl_opts_fallback = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": False,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "android_embedded", "tv_embedded"],
+                "player_client": ["android"],
                 "player_skip": ["webpage", "configs", "js"],
             }
         },
         "http_headers": {
             "User-Agent": "com.google.android.youtube/19.29.37 (Linux; U; Android 14; vi_VN; Pixel 8 Pro)",
+            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         },
     }
-    with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl:
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(url, download=False) or {}
 
 
