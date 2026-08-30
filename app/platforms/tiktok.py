@@ -725,14 +725,25 @@ class TikTokResolver(Resolver):
 
     async def _room_api(self, username: str, live_url: str, headers: dict[str, str]) -> dict[str, Any]:
         params = {**_web_params(), "sourceType": "54", "uniqueId": username}
-        r = await self._safe_get(
-            "https://www.tiktok.com/api-live/user/room/",
-            params=params,
-            headers={**headers, "User-Agent": DESKTOP_UA},
-        )
-        r.raise_for_status()
-        data = r.json()
-        room = data.get("liveRoom") or data.get("data", {}).get("liveRoom") or {}
+        room: dict[str, Any] = {}
+
+        for attempt in range(2):
+            try:
+                r = await self._safe_get(
+                    "https://www.tiktok.com/api-live/user/room/",
+                    params=params,
+                    headers={**headers, "User-Agent": DESKTOP_UA},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    room = data.get("liveRoom") or data.get("data", {}).get("liveRoom") or {}
+                    if room:
+                        break
+            except Exception:
+                pass
+            if attempt == 0 and not room:
+                await asyncio.sleep(0.4)
+
         if not room:
             return {"streams": []}
         pull_data = (((room.get("streamData") or {}).get("pull_data") or {}))
