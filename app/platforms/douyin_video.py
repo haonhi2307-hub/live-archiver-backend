@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import re
@@ -25,6 +25,16 @@ DEFAULT_HEADERS = {
 def _clean_url(raw: str) -> str:
     match = URL_RE.search(raw)
     return match.group(0).rstrip(".,;，。；!！?？)]}>") if match else raw.strip()
+
+def _safe_int(val: Any) -> int:
+    if isinstance(val, (int, float)):
+        return int(val)
+    if isinstance(val, str):
+        try:
+            return int(float(val))
+        except Exception:
+            return 0
+    return 0
 
 def _metadata_text(*values: Any) -> str:
     parts: list[str] = []
@@ -236,20 +246,21 @@ async def resolve_douyin_video(raw_input: str) -> VideoResolveResult:
                                 "source": ak
                             })
 
+
         # Collect top-level video addresses
         for ak in ("play_addr_265", "play_addr_bytevc1", "play_addr_h264", "play_addr", "download_addr"):
             addr = video.get(ak)
             if isinstance(addr, dict):
                 urls = addr.get("url_list") or []
                 if urls:
-                    w = int(addr.get("width") or video.get("width") or 0)
-                    h = int(addr.get("height") or video.get("height") or 0)
+                    w = _safe_int(addr.get("width") or video.get("width"))
+                    h = _safe_int(addr.get("height") or video.get("height"))
                     raw_candidates.append({
                         "url": urls[0].replace("playwm", "play"),
                         "width": w,
                         "height": h,
-                        "fps": int(video.get("fps") or video.get("FPS") or 0),
-                        "bitrate": int(video.get("bit_rate") or 0),
+                        "fps": _safe_int(video.get("fps") or video.get("FPS")),
+                        "bitrate": 0,
                         "gear_name": ak,
                         "source": ak
                     })
