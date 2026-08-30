@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import hashlib
 import json
 import os
@@ -46,14 +46,40 @@ def compute_rollout_bucket(rollout_id: str, version_code: int, channel: str) -> 
     val = int(digest[:8], 16)
     return (val % 100) + 1
 
+DEFAULT_MANIFEST = {
+    "package_name": "com.hao.livearchiver",
+    "version_code": 17,
+    "version_name": "0.7.2",
+    "minimum_supported_version_code": 14,
+    "apk_url": "https://live-archiver-backend.onrender.com/v1/app/download/LiveArchiver_v0.7.2.apk",
+    "apk_size": 21848361,
+    "apk_sha256": "ccfe1c2e88d2b811195552c075a1209c3af692b3b5d516d3b16d825d8ae2e29f",
+    "signing_cert_sha256": "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
+    "mandatory": False,
+    "changelog": "• Tự động cập nhật 1 chạm (In-App Auto Updater)\n• Tích hợp Douyin 4K Native On-Device Engine\n• Nâng cấp bộ đệm tải tốc độ cao 256KB & Strict MediaRemuxer",
+    "rollout_percentage": 100,
+    "channel": "stable",
+    "published_at": "2026-08-30T11:37:21Z"
+}
+
 def load_manifest() -> Optional[AppUpdateManifest]:
-    if not MANIFEST_PATH.exists():
-        return None
+    candidates = [
+        MANIFEST_PATH,
+        Path(__file__).resolve().parent / "manifest.json",
+        Path("app/updates/manifest.json"),
+        Path("app/manifest.json"),
+        Path("manifest.json"),
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8-sig"))
+                return AppUpdateManifest(**data)
+            except Exception as e:
+                print(f"Error loading update manifest from {p}: {e}")
     try:
-        data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        return AppUpdateManifest(**data)
-    except Exception as e:
-        print(f"Error loading update manifest: {e}")
+        return AppUpdateManifest(**DEFAULT_MANIFEST)
+    except Exception:
         return None
 
 @router.post("/update-check", response_model=UpdateCheckResponse)
