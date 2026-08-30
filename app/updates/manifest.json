@@ -1,15 +1,15 @@
-{
-    "package_name": "com.hao.livearchiver",
-    "version_code": 15,
-    "version_name": "0.7.0",
-    "minimum_supported_version_code": 14,
-    "apk_url": "https://live-archiver.onrender.com/v1/app/download/LiveArchiver_v0.7.0.apk",
-    "apk_size": 21839256,
-    "apk_sha256": "e2747d17f2212a1119de8b4259dc717228cc6bc4d50d80cf833900c2a127ece3",
-    "signing_cert_sha256": "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
-    "mandatory": false,
-    "changelog": "• Tự động cập nhật 1 chạm (In-App Updater)\n• Trích xuất YouTube Direct Stream siêu tốc\n• Nâng cấp Douyin 4K 60fps không logo",
-    "rollout_percentage": 100,
-    "channel": "stable",
-    "published_at": "2026-08-30T16:58:58Z"
+﻿{
+    "package_name":  "com.hao.livearchiver",
+    "version_code":  15,
+    "version_name":  "0.7.0",
+    "minimum_supported_version_code":  14,
+    "apk_url":  "https://live-archiver.onrender.com/v1/app/download/LiveArchiver_v0.7.0.apk",
+    "apk_size":  21838005,
+    "apk_sha256":  "255a2dcdf64fc023cfca2200fd4970e72665f8d3e17af398cee189151dd24442",
+    "signing_cert_sha256":  "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
+    "mandatory":  false,
+    "changelog":  "â€¢ Tá»± Ä‘á»™ng cáº­p nháº­t 1 cháº¡m (In-App Updater)\nâ€¢ TrÃ­ch xuáº¥t YouTube Direct Stream siÃªu tá»‘c\nâ€¢ NÃ¢ng cáº¥p Douyin 4K 60fps khÃ´ng logo",
+    "rollout_percentage":  100,
+    "channel":  "stable",
+    "published_at":  "2026-08-30T10:31:25Z"
 }
