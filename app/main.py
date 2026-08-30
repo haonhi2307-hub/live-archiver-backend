@@ -33,6 +33,7 @@ from .models import (
 )
 from .normalizer import normalize
 from .probe import available as ffprobe_available
+from .browser_observer import available as browser_observer_available
 from .presentation import compact_streams
 from .models_video import VideoResolveRequest, VideoResolveResult
 from .platforms.douyin import DouyinResolver
@@ -44,16 +45,24 @@ from .platforms.tiktok_video import resolve_tiktok_video
 from .settings import settings
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def create_http_client() -> httpx.AsyncClient:
     timeout = httpx.Timeout(settings.request_timeout_seconds, connect=settings.connect_timeout_seconds)
     limits = httpx.Limits(
         max_connections=settings.max_connections,
         max_keepalive_connections=settings.max_keepalive_connections,
     )
-    app.state.http = httpx.AsyncClient(timeout=timeout, limits=limits, http2=True, follow_redirects=True)
+    try:
+        return httpx.AsyncClient(timeout=timeout, limits=limits, http2=True, follow_redirects=True)
+    except Exception:
+        return httpx.AsyncClient(timeout=timeout, limits=limits, http2=False, follow_redirects=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.http = create_http_client()
     yield
-    await app.state.http.aclose()
+    if getattr(app.state, "http", None) and not app.state.http.is_closed:
+        await app.state.http.aclose()
 
 
 app = FastAPI(title="Live Archiver Resolver", version="0.5.0", lifespan=lifespan)
@@ -175,6 +184,14 @@ async def auth_lease_end(req: LeaseEndRequest):
     return {"ok": success, "message": "Lease closed"}
 
 
+def get_http_client(request: Request) -> httpx.AsyncClient:
+    http = getattr(request.app.state, "http", None)
+    if http is None or getattr(http, "is_closed", True):
+        http = create_http_client()
+        request.app.state.http = http
+    return http
+
+
 async def _resolve(
     req: ResolveRequest,
     request: Request,
@@ -213,7 +230,8 @@ async def _resolve(
             Platform.DOUYIN: DouyinResolver,
             Platform.FACEBOOK: FacebookResolver,
         }[platform]
-        resolver = resolver_cls(request.app.state.http)
+        client = get_http_client(request)
+        resolver = resolver_cls(client)
         result = await resolver.resolve(url)
         health_registry.success(platform, result.strategy)
         update = {"request_id": request_id}
