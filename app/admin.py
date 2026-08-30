@@ -409,6 +409,14 @@ async def admin_dashboard_page(request: Request):
       return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {{ hour: '2-digit', minute: '2-digit' }});
     }}
 
+    function getAuthHeaders() {{
+      const token = localStorage.getItem('la_admin_token') || '';
+      const headers = {{ 'Content-Type': 'application/json' }};
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      if (currentCsrfToken) headers['X-CSRF-Token'] = currentCsrfToken;
+      return headers;
+    }}
+
     async function submitLogin() {{
       const pass = document.getElementById('admin-pass').value.trim();
       const errEl = document.getElementById('login-err');
@@ -423,7 +431,8 @@ async def admin_dashboard_page(request: Request):
         }});
         const json = await res.json();
         if (res.ok) {{
-          currentCsrfToken = json.csrf_token;
+          if (json.token) localStorage.setItem('la_admin_token', json.token);
+          currentCsrfToken = json.csrf_token || currentCsrfToken;
           document.getElementById('login-modal').classList.add('hidden');
           refreshData();
         }} else {{
@@ -440,21 +449,25 @@ async def admin_dashboard_page(request: Request):
       try {{
         await fetch('/api/admin/logout', {{
           method: 'POST',
-          headers: {{ 'X-CSRF-Token': currentCsrfToken }}
+          headers: getAuthHeaders()
         }});
       }} catch(e) {{}}
+      localStorage.removeItem('la_admin_token');
       location.reload();
     }}
 
     async function refreshData() {{
       try {{
-        const res = await fetch('/api/admin/data');
+        const res = await fetch('/api/admin/data', {{
+          headers: getAuthHeaders()
+        }});
         if (res.status === 401) {{
           document.getElementById('login-modal').classList.remove('hidden');
           return;
         }}
         const data = await res.json();
         currentCsrfToken = data.csrf_token || currentCsrfToken;
+        document.getElementById('login-modal').classList.add('hidden');
         renderStats(data.stats);
         renderKeys(data.licenses);
         renderTrials(data.trials);
@@ -569,10 +582,7 @@ async def admin_dashboard_page(request: Request):
       try {{
         const res = await fetch('/api/admin/create-keys', {{
           method: 'POST',
-          headers: {{
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': currentCsrfToken
-          }},
+          headers: getAuthHeaders(),
           body: JSON.stringify({{ days, count, note, csrf_token: currentCsrfToken }})
         }});
         const json = await res.json();
@@ -600,10 +610,7 @@ async def admin_dashboard_page(request: Request):
       try {{
         const res = await fetch('/api/admin/delete-key', {{
           method: 'POST',
-          headers: {{
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': currentCsrfToken
-          }},
+          headers: getAuthHeaders(),
           body: JSON.stringify({{ key_code: keyCode, csrf_token: currentCsrfToken }})
         }});
         if (res.ok) refreshData();
@@ -617,10 +624,7 @@ async def admin_dashboard_page(request: Request):
       try {{
         const res = await fetch('/api/admin/revoke-lease', {{
           method: 'POST',
-          headers: {{
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': currentCsrfToken
-          }},
+          headers: getAuthHeaders(),
           body: JSON.stringify({{ lease_id: leaseId, csrf_token: currentCsrfToken }})
         }});
         if (res.ok) refreshData();
@@ -667,15 +671,15 @@ async def api_admin_login(req: dict, request: Request, response: Response):
         httponly=True,
         secure=settings.admin_cookie_secure,
         samesite="lax",
-        path="/admin",
+        path="/",
     )
-    return {"ok": True, "csrf_token": csrf_token, "message": "Đăng nhập thành công"}
+    return {"ok": True, "token": raw_token, "csrf_token": csrf_token, "message": "Đăng nhập thành công"}
 
 
 @router.post("/api/admin/logout")
 async def api_admin_logout(request: Request, response: Response):
     destroy_admin_session(request)
-    response.delete_cookie(key="la_admin_session", path="/admin")
+    response.delete_cookie(key="la_admin_session", path="/")
     return {"ok": True, "message": "Đã đăng xuất"}
 
 
