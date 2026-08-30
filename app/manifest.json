@@ -1,15 +1,15 @@
 {
     "package_name":  "com.hao.livearchiver",
-    "version_code":  17,
-    "version_name":  "0.7.2",
+    "version_code":  18,
+    "version_name":  "0.7.3",
     "minimum_supported_version_code":  14,
-    "apk_url":  "https://live-archiver-backend.onrender.com/v1/app/download/LiveArchiver_v0.7.2.apk",
-    "apk_size":  21848361,
-    "apk_sha256":  "ccfe1c2e88d2b811195552c075a1209c3af692b3b5d516d3b16d825d8ae2e29f",
+    "apk_url":  "https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/v0.7.3/LiveArchiver_v0.7.3_Pro.apk",
+    "apk_size":  21848362,
+    "apk_sha256":  "96a43e57916bf770099508eeb143afb38ad689d3bfe532d1a2ae3d350c523a51",
     "signing_cert_sha256":  "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
     "mandatory":  false,
-    "changelog":  "• Tự động cập nhật 1 chạm (In-App Auto Updater)\n• Tích hợp Douyin 4K Native On-Device Engine\n• Nâng cấp bộ đệm tải tốc độ cao 256KB \u0026 Strict MediaRemuxer",
+    "changelog":  "• Tự động cập nhật 1 chạm (In-App Auto Updater)\n• Nâng cấp bộ nhận diện TikTok Live thông minh\n• Tích hợp Douyin 4K Native On-Device Engine",
     "rollout_percentage":  100,
     "channel":  "stable",
-    "published_at":  "2026-08-30T11:37:21Z"
+    "published_at":  "2026-08-30T12:23:56Z"
 }

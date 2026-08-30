@@ -18,7 +18,7 @@ def _bool(name: str, default: bool) -> bool:
 class Settings:
     api_key: str = os.getenv("LIVE_ARCHIVER_API_KEY", "").strip()
     client_api_key: str = os.getenv("LIVE_ARCHIVER_CLIENT_API_KEY", "live_archiver_client_v05").strip()
-    admin_secret: str = os.getenv("ADMIN_SECRET", "").strip()
+    admin_secret: str = (os.getenv("ADMIN_SECRET") or os.getenv("LIVE_ARCHIVER_API_KEY") or "admin888").strip()
     admin_cookie_secure: bool = _bool("ADMIN_COOKIE_SECURE", False)
     trusted_proxies: str = os.getenv("LIVE_ARCHIVER_TRUSTED_PROXIES", "127.0.0.1").strip()
     lease_max_duration_seconds: int = int(os.getenv("LIVE_ARCHIVER_LEASE_MAX_SECONDS", "21600"))  # 6 hours

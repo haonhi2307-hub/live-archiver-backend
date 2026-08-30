@@ -39,7 +39,7 @@ class _SafeResponse:
             return self._json_data
         return json.loads(self.text)
 
-USERNAME_RE = re.compile(r"/@([^/?#]+)/live")
+USERNAME_RE = re.compile(r"/@([^/?#\s]+)", re.IGNORECASE)
 SCRIPT_RE = re.compile(
     r'<script[^>]+id=["\']__UNIVERSAL_DATA_FOR_REHYDRATION__["\'][^>]*>(.*?)</script>',
     re.I | re.S,
@@ -240,9 +240,33 @@ class TikTokResolver(Resolver):
         username = _username(url)
         canonical = url
         if not username:
-            r = await self.client.get(url, follow_redirects=True, headers={"User-Agent": WEB_UA})
-            canonical = str(r.url)
-            username = _username(canonical)
+            try:
+                # Resolve short link with Mobile UA to follow mobile redirect chain properly
+                m_headers = {
+                    "User-Agent": MOBILE_UA,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                }
+                r = await self.client.get(url, follow_redirects=True, headers=m_headers)
+                for h in r.history:
+                    u = _username(str(h.url)) or _username(h.headers.get("location") or "")
+                    if u:
+                        username = u
+                        break
+                if not username:
+                    username = _username(str(r.url)) or _username(r.headers.get("location") or "")
+                
+                # Check meta and script tags in response
+                if not username:
+                    html = r.text
+                    m = re.search(r'property="og:url"\s+content="[^"]*?/@([^/?#]+)', html) or \
+                        re.search(r'canonical"\s+href="[^"]*?/@([^/?#]+)', html) or \
+                        re.search(r'"uniqueId":"([^"]+)"', html) or \
+                        re.search(r'"unique_id":"([^"]+)"', html)
+                    if m:
+                        username = m.group(1)
+            except Exception:
+                pass
+
         if not username:
             raise ParserChangedError("Could not derive TikTok LIVE username")
 
