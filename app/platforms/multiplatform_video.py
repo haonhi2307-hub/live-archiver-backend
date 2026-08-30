@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 from typing import Any
@@ -31,6 +31,17 @@ def _extract_ytdlp(url: str) -> dict[str, Any]:
         "skip_download": True,
         "extract_flat": False,
         "format": "bestvideo+bestaudio/best",
+        "geo_bypass": True,
+        "geo_bypass_country": "VN",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web", "mweb"]
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(url, download=False) or {}
