@@ -83,12 +83,65 @@ class ResolveResult(BaseModel):
 class ResolveRequest(BaseModel):
     url: str
     device_fingerprint: str | None = None
+    installation_id: str | None = None
+    lease_id: str | None = None
+    mode: str = "inspect"  # "inspect" (preview) or "record" (under active lease)
+
+
+class AuthRegisterInstallationRequest(BaseModel):
+    installation_id: str
+    device_fingerprint: str
+    public_key_pem: str
 
 
 class AuthHandshakeRequest(BaseModel):
     device_fingerprint: str
+    installation_id: str | None = None
+    public_key_pem: str | None = None
 
 
 class AuthActivateRequest(BaseModel):
     device_fingerprint: str
     key_code: str
+    installation_id: str | None = None
+    signature: str | None = None
+    nonce: str | None = None
+    timestamp_utc: str | None = None
+
+
+class AuthResponse(BaseModel):
+    ok: bool
+    status: str
+    plan: str
+    days_remaining: int
+    expires_at: str | None = None
+    device_fingerprint: str
+    installation_id: str | None = None
+    server_time_utc: str
+    message: str
+
+
+class LeaseStartRequest(BaseModel):
+    installation_id: str
+    device_fingerprint: str
+    session_id: str
+    platform: str
+    canonical_url: str
+    signature: str | None = None
+    nonce: str | None = None
+    timestamp_utc: str | None = None
+
+
+class LeaseEndRequest(BaseModel):
+    lease_id: str
+    installation_id: str
+    session_id: str
+
+
+class LeaseResponse(BaseModel):
+    ok: bool
+    lease_id: str | None = None
+    session_id: str | None = None
+    expires_at_utc: str | None = None
+    status: str
+    message: str

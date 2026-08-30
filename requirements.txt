@@ -4,4 +4,6 @@ httpx[http2]>=0.27.0
 pydantic>=2.7.0
 yt-dlp
 curl-cffi
+playwright
+cryptography
 python-dotenv

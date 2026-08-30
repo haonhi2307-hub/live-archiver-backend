@@ -6,7 +6,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && playwright install chromium --with-deps
 COPY app ./app
 RUN useradd -r -u 10001 livearchiver && chown -R livearchiver:livearchiver /app
 USER livearchiver

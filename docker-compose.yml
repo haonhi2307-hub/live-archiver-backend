@@ -1,0 +1,10 @@
+services:
+  resolver:
+    build: .
+    restart: unless-stopped
+    environment:
+      LIVE_ARCHIVER_API_KEY: ${LIVE_ARCHIVER_API_KEY:-}
+      LIVE_ARCHIVER_REQUEST_TIMEOUT: ${LIVE_ARCHIVER_REQUEST_TIMEOUT:-18}
+      LIVE_ARCHIVER_CONNECT_TIMEOUT: ${LIVE_ARCHIVER_CONNECT_TIMEOUT:-10}
+    ports:
+      - "127.0.0.1:8000:8000"

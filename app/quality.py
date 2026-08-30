@@ -26,36 +26,53 @@ def short_edge(c: StreamCandidate) -> int:
     return 0
 
 
-def quality_score(c: StreamCandidate) -> tuple:
-    """Rank actual media properties first.
+def provenance_weight(c: StreamCandidate) -> float:
+    prov = (c.provenance or "").upper()
+    if prov in {"PLAYER_OBSERVED", "PLAYER_REQUEST", "BROWSER_RESPONSE"}:
+        return 1.0
+    if prov in {"FAST_API", "UNIVERSAL_DATA", "WEBCAST_INFO", "SIGI_STATE"}:
+        return 0.9
+    if prov in {"AUTH_BROWSER"}:
+        return 0.85
+    if prov in {"ANONYMOUS", "API_FAST"}:
+        return 0.7
+    if c.derived or prov in {"FAMILY_DERIVED", "DERIVED"}:
+        return 0.4
+    return 0.5
 
-    `origin`, `uhd`, `hd1`, `_or4`, etc. are hints only. A verified 1440p
-    stream must beat a 720p stream even when the latter is labelled origin.
+
+def quality_score(c: StreamCandidate) -> tuple:
+    """Rank verified real media properties first.
+
+    - verified comes first (unverified/error candidates rank lowest).
+    - pixels / short edge / fps / bitrate measure real media delivery.
+    - provenance weights observed player > fast API > derived hypotheses.
+    - codec is a secondary tie-breaker (high-bitrate H264 > low-bitrate HEVC).
     """
+    verified = 1 if c.verified else 0
+    if c.probe_error:
+        verified = -1
     pixels = (c.width or 0) * (c.height or 0)
     edge = short_edge(c)
-    fps = c.fps or 0
-    verified = 1 if c.verified else 0
-    observed = 1 if c.observed_by_player else 0
+    fps = round(c.fps or 0.0)
     bitrate = c.bitrate or 0
+    prov = provenance_weight(c)
     stability = c.stability_score or 0.0
     tier = quality_tier(c.platform_quality)
-    # HEVC is not automatically "better", but at otherwise equal measured
-    # properties it is a useful source-quality tie breaker.
     codec = (c.video_codec or "").lower()
     codec_rank = 3 if codec in {"hevc", "h265", "hvc1", "hev1", "bytevc1"} else 2 if codec in {"h264", "avc", "avc1"} else 1
     protocol_rank = {"flv": 4, "hls": 3, "http": 2, "dash": 1}.get(c.protocol.lower(), 0)
     return (
+        verified,
         pixels,
         edge,
         fps,
-        verified,
-        observed,
         bitrate,
+        prov,
         stability,
         codec_rank,
-        tier,
         protocol_rank,
+        tier,
         c.quality_confidence,
     )
 

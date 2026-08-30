@@ -169,7 +169,8 @@ async def probe_best_candidates(streams: list[StreamCandidate], *, max_candidate
 
     limit = max(1, max_candidates or settings.ffprobe_max_candidates)
     selected = _select_probe_set(streams, limit)
-    sem = asyncio.Semaphore(max(1, settings.ffprobe_parallelism))
+    concurrency = max(1, min(settings.ffprobe_max_concurrency, settings.ffprobe_parallelism))
+    sem = asyncio.Semaphore(concurrency)
 
     async def one(c: StreamCandidate) -> StreamCandidate:
         async with sem:

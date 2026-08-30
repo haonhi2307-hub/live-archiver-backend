@@ -14,9 +14,15 @@ def _bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-@dataclass(frozen=True)
+@dataclass
 class Settings:
     api_key: str = os.getenv("LIVE_ARCHIVER_API_KEY", "").strip()
+    client_api_key: str = os.getenv("LIVE_ARCHIVER_CLIENT_API_KEY", "live_archiver_client_v05").strip()
+    admin_secret: str = os.getenv("ADMIN_SECRET", "").strip()
+    admin_cookie_secure: bool = _bool("ADMIN_COOKIE_SECURE", False)
+    trusted_proxies: str = os.getenv("LIVE_ARCHIVER_TRUSTED_PROXIES", "127.0.0.1").strip()
+    lease_max_duration_seconds: int = int(os.getenv("LIVE_ARCHIVER_LEASE_MAX_SECONDS", "21600"))  # 6 hours
+
     request_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_REQUEST_TIMEOUT", "20"))
     connect_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_CONNECT_TIMEOUT", "10"))
     max_connections: int = int(os.getenv("LIVE_ARCHIVER_MAX_CONNECTIONS", "200"))
@@ -32,11 +38,12 @@ class Settings:
     # Media verification.
     enable_ytdlp_fallback: bool = _bool("LIVE_ARCHIVER_ENABLE_YTDLP_FALLBACK", True)
     enable_ffprobe: bool = _bool("LIVE_ARCHIVER_ENABLE_FFPROBE", True)
-    ffprobe_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_FFPROBE_TIMEOUT", "5.5"))
-    ffprobe_max_candidates: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_MAX", "8"))
-    ffprobe_deep_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_FFPROBE_DEEP_TIMEOUT", "8.0"))
+    ffprobe_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_FFPROBE_TIMEOUT", "4.0"))
+    ffprobe_max_candidates: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_MAX", "12"))
+    ffprobe_max_concurrency: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_MAX_CONCURRENCY", "4"))
+    ffprobe_deep_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_FFPROBE_DEEP_TIMEOUT", "6.0"))
     ffprobe_deep_max_candidates: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_DEEP_MAX", "4"))
-    ffprobe_parallelism: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_PARALLEL", "6"))
+    ffprobe_parallelism: int = int(os.getenv("LIVE_ARCHIVER_FFPROBE_PARALLEL", "4"))
 
     # If a fast/API resolver cannot verify at least this short edge, invoke the
     # official-player observer instead of assuming 720p is the maximum.
@@ -45,15 +52,15 @@ class Settings:
 
     # Official web-player observation (Playwright). App-owned profile by default.
     enable_browser_observer: bool = _bool("LIVE_ARCHIVER_ENABLE_BROWSER_OBSERVER", True)
-    # MAX SOURCE mode observes the official player even when API already shows 1080p,
-    # because the player may still expose 1440p/2160p or a better codec rendition.
-    always_observe_player: bool = _bool("LIVE_ARCHIVER_ALWAYS_OBSERVE_PLAYER", True)
-    browser_observer_seconds: float = float(os.getenv("LIVE_ARCHIVER_BROWSER_OBSERVER_SECONDS", "5.5"))
+    always_observe_player: bool = _bool("LIVE_ARCHIVER_ALWAYS_OBSERVE_PLAYER", False)
+    browser_max_contexts: int = int(os.getenv("LIVE_ARCHIVER_BROWSER_MAX_CONTEXTS", "2"))
+    browser_observer_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_BROWSER_OBSERVER_TIMEOUT", "8.0"))
+    browser_observer_seconds: float = float(os.getenv("LIVE_ARCHIVER_BROWSER_OBSERVER_SECONDS", "5.0"))
     browser_navigation_timeout_seconds: float = float(os.getenv("LIVE_ARCHIVER_BROWSER_NAV_TIMEOUT", "15"))
     browser_headless: bool = _bool("LIVE_ARCHIVER_BROWSER_HEADLESS", True)
     browser_channel: str = os.getenv("LIVE_ARCHIVER_BROWSER_CHANNEL", "").strip()  # e.g. chrome
     browser_executable_path: str = os.getenv("LIVE_ARCHIVER_BROWSER_EXECUTABLE", "").strip()
-    browser_profile_dir: str = os.getenv("LIVE_ARCHIVER_BROWSER_PROFILE_DIR", "./browser_profile").strip()
+    browser_profile_dir: str = os.getenv("LIVE_ARCHIVER_BROWSER_PROFILE_DIR", "./data/browser_profile").strip()
     browser_max_response_bytes: int = int(os.getenv("LIVE_ARCHIVER_BROWSER_MAX_RESPONSE_BYTES", str(8 * 1024 * 1024)))
     browser_user_agent: str = os.getenv(
         "LIVE_ARCHIVER_BROWSER_UA",
