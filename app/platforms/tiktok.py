@@ -351,10 +351,37 @@ class TikTokResolver(Resolver):
         candidates = dedupe_candidates(candidates)
         if candidates:
             candidates = await probe_best_candidates(sort_best(candidates))
-        best_verified_edge = max((short_edge(c) for c in candidates if c.verified), default=0)
 
-        # PHASE B: Official Web-Player Observer (if FAST didn't reach 1080p or always_observe_player is set)
-        if browser_available() and (settings.always_observe_player or best_verified_edge < settings.tiktok_high_quality_short_edge):
+        verified_candidates = [c for c in candidates if c.verified]
+
+        # CONDITION 1 & 13: GOLDEN PATH FROZEN
+        # If FAST returned LIVE + verified streams -> RETURN IMMEDIATELY.
+        # Zero Tier 2 / Browser Observer invocation.
+        if verified_candidates:
+            candidates = mark_recommended(verified_candidates)
+            diagnostics["tier2_invocations"] = 0
+            return ResolveResult(
+                platform=Platform.TIKTOK,
+                state=LiveState.LIVE,
+                canonical_url=live_url,
+                content_id=room_id,
+                creator_id=creator_id,
+                creator_name=creator_name,
+                title=title,
+                strategy="TIKTOK_FAST_MAX_V043",
+                streams=candidates,
+                diagnostics=diagnostics,
+            )
+
+        # CONDITION 3 & 5: Evidence-based OFFLINE vs Ambiguous Fallback Trigger
+        # Check if room is unambiguously confirmed OFFLINE without spinning up Chromium
+        fast_errors = [diagnostics.get("profile_error"), diagnostics.get("room_api_error"), diagnostics.get("webcast_error")]
+        has_api_blocked = any(err and ("403" in err or "429" in err) for err in fast_errors)
+        suspicious_offline = bool(room_id and not candidates and not has_api_blocked)
+
+        # PHASE B: Official Web-Player Observer (Tier 2 Fallback for edge cases & ambiguous offlines)
+        if browser_available() and (has_api_blocked or suspicious_offline or settings.always_observe_player):
+            diagnostics["tier2_invocations"] = 1
             try:
                 obs = await observe_player(live_url)
                 diagnostics.update({
@@ -367,118 +394,62 @@ class TikTokResolver(Resolver):
                 })
                 if obs.candidates:
                     diagnostics["sources"].append("OFFICIAL_PLAYER_OBSERVER")
-                    candidates.extend(obs.candidates)
-                    candidates = dedupe_candidates(candidates)
-                    candidates = await probe_best_candidates(sort_best(candidates))
-                    best_verified_edge = max((short_edge(c) for c in candidates if c.verified), default=0)
+                    probed_obs = await probe_best_candidates(sort_best(dedupe_candidates(obs.candidates)))
+                    verified_obs = [c for c in probed_obs if c.verified]
+                    if verified_obs:
+                        return ResolveResult(
+                            platform=Platform.TIKTOK,
+                            state=LiveState.LIVE,
+                            canonical_url=live_url,
+                            content_id=room_id,
+                            creator_id=creator_id,
+                            creator_name=creator_name,
+                            title=title or "TikTok Live",
+                            strategy="TIKTOK_OFFICIAL_OBSERVER",
+                            streams=mark_recommended(verified_obs),
+                            diagnostics=diagnostics,
+                        )
             except Exception as exc:
                 diagnostics["browser_errors"] = [str(exc)[:300]]
+        else:
+            diagnostics["tier2_invocations"] = 0
 
-        # PHASE C: Experimental Family Probing (Fallback if still below high quality threshold)
-        if settings.enable_stream_family_probe and best_verified_edge < settings.tiktok_high_quality_short_edge:
-            family_candidates = add_family_hypotheses(candidates)
-            unprobed_family = [c for c in family_candidates if c.derived and not c.verified and not c.probe_error]
-            if unprobed_family:
-                probed_family = await probe_best_candidates(unprobed_family, max_candidates=settings.ffprobe_max_candidates)
-                # Drop unverified or error derived candidates immediately (Rule 13)
-                verified_family = [c for c in probed_family if c.verified and not c.probe_error]
-                if verified_family:
-                    diagnostics["sources"].append("STREAM_FAMILY_PROBE")
-                    candidates.extend(verified_family)
-                    candidates = dedupe_candidates(candidates)
-
-        # yt-dlp is now an emergency fallback when no playable streams were discovered
+        # yt-dlp emergency fallback (only if enabled and still no candidates)
         if settings.enable_ytdlp_fallback and not candidates:
             try:
                 ytdlp = await asyncio.wait_for(
                     asyncio.to_thread(self._ytdlp_formats, live_url, headers),
                     timeout=settings.ytdlp_fallback_timeout_seconds,
                 )
-                if ytdlp:
-                    diagnostics["sources"].append("YTDLP_LIVE_FALLBACK")
-                    title = ytdlp.get("title") or title
-                    creator_name = ytdlp.get("creator_name") or creator_name
-                    room_id = room_id or ytdlp.get("room_id")
-                    candidates.extend(ytdlp.get("streams") or [])
-                    candidates = dedupe_candidates(candidates)
-                    candidates = await probe_best_candidates(sort_best(candidates))
-            except asyncio.TimeoutError:
-                diagnostics["ytdlp_error"] = f"yt-dlp fallback capped at {settings.ytdlp_fallback_timeout_seconds:g}s"
+                if ytdlp and ytdlp.get("streams"):
+                    probed_ytdlp = await probe_best_candidates(sort_best(dedupe_candidates(ytdlp.get("streams") or [])))
+                    verified_ytdlp = [c for c in probed_ytdlp if c.verified]
+                    if verified_ytdlp:
+                        diagnostics["sources"].append("YTDLP_LIVE_FALLBACK")
+                        return ResolveResult(
+                            platform=Platform.TIKTOK,
+                            state=LiveState.LIVE,
+                            canonical_url=live_url,
+                            content_id=room_id or ytdlp.get("room_id"),
+                            creator_id=creator_id,
+                            creator_name=ytdlp.get("creator_name") or creator_name,
+                            title=ytdlp.get("title") or title,
+                            strategy="TIKTOK_YTDLP_FALLBACK",
+                            streams=mark_recommended(verified_ytdlp),
+                            diagnostics=diagnostics,
+                        )
             except Exception as exc:
                 diagnostics["ytdlp_error"] = str(exc)[:300]
 
-        if not candidates:
-            return ResolveResult(
-                platform=Platform.TIKTOK,
-                state=LiveState.OFFLINE,
-                canonical_url=live_url,
-                content_id=room_id,
-                creator_id=creator_id,
-                creator_name=creator_name,
-                title=title,
-                strategy="TIKTOK_FAST_MAX_V043",
-                diagnostics=diagnostics,
-            )
-
-        candidates = mark_recommended(candidates)
-        winner = next((c for c in candidates if c.recommended), None)
-        best_edge = max((short_edge(c) for c in candidates if c.verified), default=0)
-
-        def _candidate_benchmark_row(c: StreamCandidate) -> dict[str, Any]:
-            try:
-                split = urlsplit(c.url)
-                clean_path = split.path.rsplit("/", 1)[-1]
-                host = split.netloc
-            except Exception:
-                clean_path = "unknown"
-                host = "unknown"
-            return {
-                "id": c.id,
-                "host": host,
-                "path_file": clean_path,
-                "source_method": c.source,
-                "provenance": c.provenance,
-                "observed_by_player": c.observed_by_player,
-                "derived": c.derived,
-                "width": c.width,
-                "height": c.height,
-                "fps": c.fps,
-                "codec": c.video_codec,
-                "bitrate": c.bitrate,
-                "verified": c.verified,
-                "probe_error": c.probe_error,
-                "recommended": c.recommended,
-            }
-
-        diagnostics.update({
-            "best_short_edge": best_edge,
-            "verified_streams": sum(1 for c in candidates if c.verified),
-            "player_observed_streams": sum(1 for c in candidates if c.observed_by_player),
-            "derived_verified_streams": sum(1 for c in candidates if c.derived and c.verified),
-            "candidate_count": len(candidates),
-            "winner": ({
-                "id": winner.id, "width": winner.width, "height": winner.height,
-                "fps": winner.fps, "codec": winner.video_codec, "bitrate": winner.bitrate,
-                "source": winner.source, "verified": winner.verified,
-                "observed_by_player": winner.observed_by_player,
-            } if winner else None),
-            "quality_warning": (
-                None if best_edge >= settings.high_quality_short_edge
-                else "Best VERIFIED stream is below 1080-class in the active session"
-            ),
-            "candidate_benchmark_table": [_candidate_benchmark_row(c) for c in candidates],
-        })
-
         return ResolveResult(
             platform=Platform.TIKTOK,
-            state=LiveState.LIVE,
+            state=LiveState.OFFLINE,
             canonical_url=live_url,
             content_id=room_id,
             creator_id=creator_id,
             creator_name=creator_name,
             title=title,
             strategy="TIKTOK_FAST_MAX_V043",
-            streams=candidates,
             diagnostics=diagnostics,
         )
 

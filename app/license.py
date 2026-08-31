@@ -507,6 +507,12 @@ def check_access(
         )
         if valid_lease:
             return True, "Lease active", "ACTIVE"
+        
+        # If lease was not found or expired, check if device itself is entitled (Trial / VIP)
+        ent = handshake(device, installation_id)
+        if ent.get("is_valid"):
+            return True, "Permitted via active device entitlement", ent.get("status", "ACTIVE")
+
         return False, f"Lease error: {reason}", "LEASE_INVALID"
 
     # 2. Check general entitlement (handshake)
