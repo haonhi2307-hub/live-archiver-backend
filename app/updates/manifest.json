@@ -1,15 +1,15 @@
 {
     "package_name":  "com.hao.livearchiver",
-    "version_code":  26,
-    "version_name":  "0.7.11",
+    "version_code":  28,
+    "version_name":  "0.7.13",
     "minimum_supported_version_code":  14,
-    "apk_url":  "https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/v0.7.11/LiveArchiver_v0.7.11_Pro.apk",
-    "apk_size":  21897554,
-    "apk_sha256":  "c956633b607df79409cc1fcf3a65e57c5639728e12dc9d62eb1a1f586665747f",
+    "apk_url":  "https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/v0.7.13/LiveArchiver_v0.7.13_Pro.apk",
+    "apk_size":  21913937,
+    "apk_sha256":  "7f5b0ffb24ea952b47562ba85a11dee7fd12a9c9e67f8cd146d1fbee283c80d5",
     "signing_cert_sha256":  "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
     "mandatory":  false,
     "changelog":  "â€¢ Tá»± Ä‘á»™ng cáº­p nháº­t 1 cháº¡m (In-App Auto Updater)\nâ€¢ TÃ­ch há»£p Douyin 4K Native On-Device Engine\nâ€¢ NÃ¢ng cáº¥p bá»™ Ä‘á»‡m táº£i tá»‘c Ä‘á»™ cao 256KB \u0026 Strict MediaRemuxer",
     "rollout_percentage":  100,
     "channel":  "stable",
-    "published_at":  "2026-08-31T01:37:09Z"
+    "published_at":  "2026-08-31T01:52:39Z"
 }
