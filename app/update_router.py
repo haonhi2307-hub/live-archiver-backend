@@ -63,7 +63,38 @@ DEFAULT_MANIFEST = {
     "published_at": "2026-08-30T11:37:21Z"
 }
 
+import httpx
+
+_cached_gh_apk: dict[str, Any] = {"url": None, "size": None, "tag": None, "expires_at": 0}
+
+def get_latest_github_release_asset() -> tuple[Optional[str], Optional[int], Optional[str]]:
+    import time
+    now = time.time()
+    if _cached_gh_apk.get("url") and now < _cached_gh_apk.get("expires_at", 0):
+        return _cached_gh_apk["url"], _cached_gh_apk["size"], _cached_gh_apk["tag"]
+
+    url = "https://api.github.com/repos/haonhi2307-hub/live-archiver-backend/releases/latest"
+    try:
+        r = httpx.get(url, timeout=4.0, headers={"User-Agent": "LiveArchiverBackend/1.0"})
+        if r.status_code == 200:
+            data = r.json()
+            tag = data.get("tag_name")
+            for asset in data.get("assets", []):
+                name = asset.get("name", "")
+                download_url = asset.get("browser_download_url")
+                size = asset.get("size")
+                if name.endswith(".apk") and download_url:
+                    _cached_gh_apk["url"] = download_url
+                    _cached_gh_apk["size"] = size
+                    _cached_gh_apk["tag"] = tag
+                    _cached_gh_apk["expires_at"] = now + 60
+                    return download_url, size, tag
+    except Exception as e:
+        print(f"Error fetching latest GitHub release: {e}")
+    return _cached_gh_apk.get("url"), _cached_gh_apk.get("size"), _cached_gh_apk.get("tag")
+
 def load_manifest() -> Optional[AppUpdateManifest]:
+    manifest_obj: Optional[AppUpdateManifest] = None
     candidates = [
         MANIFEST_PATH,
         Path(__file__).resolve().parent / "manifest.json",
@@ -75,13 +106,25 @@ def load_manifest() -> Optional[AppUpdateManifest]:
         if p.exists():
             try:
                 data = json.loads(p.read_text(encoding="utf-8-sig"))
-                return AppUpdateManifest(**data)
+                manifest_obj = AppUpdateManifest(**data)
+                break
             except Exception as e:
                 print(f"Error loading update manifest from {p}: {e}")
-    try:
-        return AppUpdateManifest(**DEFAULT_MANIFEST)
-    except Exception:
-        return None
+
+    if not manifest_obj:
+        try:
+            manifest_obj = AppUpdateManifest(**DEFAULT_MANIFEST)
+        except Exception:
+            return None
+
+    # Dynamically verify and inject exact working GitHub Release URL
+    gh_url, gh_size, gh_tag = get_latest_github_release_asset()
+    if gh_url:
+        manifest_obj.apk_url = gh_url
+        if gh_size:
+            manifest_obj.apk_size = gh_size
+
+    return manifest_obj
 
 @router.post("/update-check", response_model=UpdateCheckResponse)
 async def check_update_post(req: UpdateCheckRequest):
@@ -127,7 +170,11 @@ async def download_apk(filename: str):
                 filename=safe_name
             )
 
+    gh_url, _, _ = get_latest_github_release_asset()
+    if gh_url:
+        return RedirectResponse(url=gh_url, status_code=302)
+
     version_match = re.search(r"v?(\d+\.\d+\.\d+)", safe_name)
-    tag = f"v{version_match.group(1)}" if version_match else "v0.7.2"
+    tag = f"v{version_match.group(1)}" if version_match else "v0.7.8"
     release_url = f"https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/{tag}/{safe_name}"
     return RedirectResponse(url=release_url, status_code=302)
