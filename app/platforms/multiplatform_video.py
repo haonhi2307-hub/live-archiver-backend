@@ -25,25 +25,39 @@ def _detect_platform(url: str) -> str:
 
 
 def _extract_ytdlp(url: str) -> dict[str, Any]:
-    # Bulletproof Android Mobile Innertube: skips webpage checks, passes datacenter bot guards
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": False,
-        "geo_bypass": True,
-        "geo_bypass_country": "VN",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android"],
-                "player_skip": ["webpage", "configs", "js"],
-            }
-        },
-        "http_headers": {
-            "User-Agent": "com.google.android.youtube/19.29.37 (Linux; U; Android 14; vi_VN; Pixel 8 Pro)",
-            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        },
-    }
+    platform = _detect_platform(url)
+    if platform == "youtube":
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": False,
+            "geo_bypass": True,
+            "geo_bypass_country": "VN",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android"],
+                    "player_skip": ["webpage", "configs", "js"],
+                }
+            },
+            "http_headers": {
+                "User-Agent": "com.google.android.youtube/19.29.37 (Linux; U; Android 14; vi_VN; Pixel 8 Pro)",
+                "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+            },
+        }
+    else:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": False,
+            "geo_bypass": True,
+            "geo_bypass_country": "VN",
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+            },
+        }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(url, download=False) or {}
 
@@ -68,14 +82,36 @@ async def resolve_multiplatform_video(url: str) -> VideoResolveResult:
     best_audio = max(audio_formats, key=lambda f: f.get("abr") or 0, default=None)
     best_audio_url = best_audio.get("url") if best_audio else None
 
-    # Filter video formats
-    video_formats = [f for f in formats if f.get("vcodec") != "none" and f.get("url")]
-    # Group by resolution height (e.g. 2160, 1440, 1080, 720, 480)
-    seen_heights: set[int] = set()
+    # Filter video and progressive A/V formats (vcodec is not explicitly 'none')
+    video_formats = [f for f in formats if f.get("vcodec") != "none" and f.get("url") and f.get("ext") != "m4a"]
+
+    # Pre-populate dimensions for formats without explicit height (e.g. Facebook progressive HD/SD)
+    for f in video_formats:
+        h = f.get("height") or 0
+        w = f.get("width") or 0
+        fmt_id = str(f.get("format_id") or "").lower()
+        tag = str(f.get("tag") or "").lower()
+        if not h:
+            if "1080" in fmt_id or "1080" in tag:
+                f["height"] = 1080
+                f["width"] = w or 1920
+            elif "hd" in fmt_id or "720" in fmt_id or "720" in tag:
+                f["height"] = 720
+                f["width"] = w or 1280
+            elif "sd" in fmt_id or "480" in fmt_id or "sd" in tag:
+                f["height"] = 480
+                f["width"] = w or 854
+            elif "360" in fmt_id or "360" in tag:
+                f["height"] = 360
+                f["width"] = w or 640
+            elif f.get("url"):
+                f["height"] = 720
+                f["width"] = w or 1280
 
     # Sort video formats by height, fps, tbr
     video_formats.sort(key=lambda f: (f.get("height") or 0, f.get("fps") or 0, f.get("tbr") or 0), reverse=True)
 
+    seen_heights: set[int] = set()
     for f in video_formats:
         h = f.get("height") or 0
         w = f.get("width") or 0
@@ -88,26 +124,30 @@ async def resolve_multiplatform_video(url: str) -> VideoResolveResult:
         seen_heights.add(height_tier)
 
         fps = float(f.get("fps") or 30.0)
-        vcodec = (f.get("vcodec") or "mp4").split(".")[0]
+        vcodec = (f.get("vcodec") or "h264").split(".")[0]
         bitrate = int((f.get("tbr") or 0) * 1000)
         v_url = f.get("url")
         # If this format has no audio, attach the best audio URL so client can remux
-        has_audio = f.get("acodec") != "none"
+        has_audio = f.get("acodec") not in ("none", None)
         attached_audio = None if has_audio else best_audio_url
 
-        if h >= 2160:
+        short_dim = min(w, h) if (w > 0 and h > 0) else h
+
+        if short_dim >= 2160:
             label = f"4K 2160p ({fps:g}fps)"
-        elif h >= 1440:
+        elif short_dim >= 1440:
             label = f"2K 1440p ({fps:g}fps)"
-        elif h >= 1080:
+        elif short_dim >= 1080:
             label = f"1080p Full HD ({fps:g}fps)"
-        elif h >= 720:
-            label = f"720p HD ({fps:g}fps)"
+        elif short_dim >= 720:
+            label = f"720p HD (Khuyến nghị)"
+        elif short_dim >= 480:
+            label = f"480p SD (Tiêu chuẩn)"
         else:
-            label = f"{h}p ({fps:g}fps)"
+            label = f"{short_dim}p SD (Tiết kiệm)"
 
         renditions.append(VideoRendition(
-            id=f"{platform}_{content_id}_{h}p",
+            id=f"{platform}_{content_id}_{short_dim}p",
             label=label,
             url=v_url,
             audio_url=attached_audio,
@@ -118,7 +158,7 @@ async def resolve_multiplatform_video(url: str) -> VideoResolveResult:
             codec=vcodec,
             format="mp4",
             headers=f.get("http_headers") or {},
-            is_original=(h >= 1080),
+            is_original=(short_dim >= 720),
         ))
 
     # Add audio-only rendition if available
