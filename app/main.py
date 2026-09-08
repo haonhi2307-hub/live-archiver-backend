@@ -135,8 +135,13 @@ async def auth_register_installation(req: AuthRegisterInstallationRequest):
 @app.post("/v1/auth/handshake", dependencies=[Depends(require_client_auth)])
 async def auth_handshake(req: AuthHandshakeRequest):
     if req.installation_id and req.public_key_pem:
-        return register_installation(req.installation_id, req.device_fingerprint, req.public_key_pem)
-    return handshake(req.device_fingerprint, req.installation_id)
+        register_installation(req.installation_id, req.device_fingerprint, req.public_key_pem)
+    return handshake(
+        device_fingerprint=req.device_fingerprint,
+        installation_id=req.installation_id,
+        first_install_time_utc=req.first_install_time_utc,
+        active_license_key=req.active_license_key,
+    )
 
 
 @app.post("/v1/auth/activate", dependencies=[Depends(require_client_auth)])

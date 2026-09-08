@@ -1,15 +1,15 @@
 {
-    "package_name": "com.hao.livearchiver",
-    "version_code": 60,
-    "version_name": "0.7.45",
-    "minimum_supported_version_code": 14,
-    "apk_url": "https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/v0.7.45/LiveArchiver_v0.7.45_Pro.apk",
-    "apk_size": 22061710,
-    "apk_sha256": "7406d71d5a1c0f3f2cc0578b5111740996fc23ccd7fdefee8645c2360503e3f4",
-    "signing_cert_sha256": "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
-    "mandatory": false,
-    "changelog": "• Bổ sung tính năng mới: TẢI FULL KÊNH (YouTube, Douyin, TikTok)\n• Bộ lọc thông minh: Video nhiều view, nhiều tim, tùy chọn số lượng tải\n• Tối ưu tốc độ tải và tự động lưu video vào Bộ sưu tập",
-    "rollout_percentage": 100,
-    "channel": "stable",
-    "published_at": "2026-09-08T05:45:00Z"
+    "package_name":  "com.hao.livearchiver",
+    "version_code":  62,
+    "version_name":  "0.7.47",
+    "minimum_supported_version_code":  14,
+    "apk_url":  "https://github.com/haonhi2307-hub/live-archiver-backend/releases/download/v0.7.47/LiveArchiver_v0.7.47_Pro.apk",
+    "apk_size":  22078106,
+    "apk_sha256":  "a81edf8a9aff8613f4176ec0b74a98836306bdda248eb590d9a4ac69451949b0",
+    "signing_cert_sha256":  "747a30f81bc44b80f3369a991dd3cd8601d7c78a4a7ce4f6aa455bc3ab22fc24",
+    "mandatory":  false,
+    "changelog":  "â€¢ Tá»± Ä‘á»™ng cáº­p nháº­t 1 cháº¡m (In-App Auto Updater)\nâ€¢ TÃ­ch há»£p Douyin 4K Native On-Device Engine\nâ€¢ NÃ¢ng cáº¥p bá»™ Ä‘á»‡m táº£i tá»‘c Ä‘á»™ cao 256KB \u0026 Strict MediaRemuxer",
+    "rollout_percentage":  100,
+    "channel":  "stable",
+    "published_at":  "2026-09-07T23:14:36Z"
 }

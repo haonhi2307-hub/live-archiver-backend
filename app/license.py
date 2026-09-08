@@ -103,6 +103,17 @@ def init_db() -> None:
             );
             """
         )
+        # Automatic schema migrations for existing databases
+        for col_stmt in [
+            "ALTER TABLE licenses ADD COLUMN bound_installation_id TEXT",
+            "ALTER TABLE device_installations ADD COLUMN active_license_key TEXT",
+            "ALTER TABLE device_installations ADD COLUMN public_key_pem TEXT",
+        ]:
+            try:
+                conn.execute(col_stmt)
+            except sqlite3.OperationalError:
+                pass
+
         conn.commit()
 
 
@@ -124,11 +135,33 @@ def _gen_random_part(length: int = 4) -> str:
     return "".join(secrets.choice(clean_chars) for _ in range(length))
 
 
+def _get_master_secret() -> str:
+    return (settings.admin_secret or settings.api_key or "admin888").strip()
+
+
+def verify_license_key_hmac(key_code: str) -> tuple[bool, int]:
+    code = key_code.strip().upper()
+    parts = code.split("-")
+    if len(parts) != 4 or parts[0] != "LIVE":
+        return False, 0
+    tag, p1, chk = parts[1], parts[2], parts[3]
+    if tag == "1Y":
+        days = 365
+    elif tag.endswith("D") and tag[:-1].isdigit():
+        days = int(tag[:-1])
+    else:
+        return False, 0
+    secret = _get_master_secret()
+    expected = hmac.new(secret.encode(), f"LIVE:{tag}:{p1}".encode(), hashlib.sha256).hexdigest()[:4].upper()
+    return hmac.compare_digest(chk, expected), days
+
+
 def generate_key_code(duration_days: int) -> str:
     tag = f"{duration_days}D" if duration_days < 365 else "1Y"
     p1 = _gen_random_part(4)
-    p2 = _gen_random_part(4)
-    return f"LIVE-{tag}-{p1}-{p2}"
+    secret = _get_master_secret()
+    chk = hmac.new(secret.encode(), f"LIVE:{tag}:{p1}".encode(), hashlib.sha256).hexdigest()[:4].upper()
+    return f"LIVE-{tag}-{p1}-{chk}"
 
 
 def create_licenses(count: int, duration_days: int, note: str = "") -> list[str]:
@@ -203,7 +236,12 @@ def register_installation(
     return handshake(fingerprint, inst_id)
 
 
-def handshake(device_fingerprint: str, installation_id: str | None = None) -> dict[str, Any]:
+def handshake(
+    device_fingerprint: str,
+    installation_id: str | None = None,
+    first_install_time_utc: int | None = None,
+    active_license_key: str | None = None,
+) -> dict[str, Any]:
     init_db()
     if not device_fingerprint or len(device_fingerprint.strip()) < 8:
         return {
@@ -224,6 +262,24 @@ def handshake(device_fingerprint: str, installation_id: str | None = None) -> di
             (device,),
         )
         row = cur.fetchone()
+
+        # If not found in DB (e.g. Render restarted) but device provided an active key
+        if not row and active_license_key:
+            key_clean = active_license_key.strip().upper()
+            is_valid_hmac, hmac_days = verify_license_key_hmac(key_clean)
+            if is_valid_hmac:
+                new_exp = now + hmac_days * 86400
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO licenses 
+                    (key_code, duration_days, status, bound_device, bound_installation_id, activated_at, expires_at, note)
+                    VALUES (?, ?, 'ACTIVE', ?, ?, ?, ?, 'HMAC_RESTORED')
+                    """,
+                    (key_clean, hmac_days, device, installation_id, now, new_exp),
+                )
+                conn.commit()
+                row = conn.execute("SELECT * FROM licenses WHERE key_code = ?", (key_clean,)).fetchone()
+
         if row:
             expires_at = row["expires_at"]
             if expires_at and now <= expires_at:
@@ -253,48 +309,51 @@ def handshake(device_fingerprint: str, installation_id: str | None = None) -> di
         # 2. Check Trial for this device fingerprint
         cur = conn.execute("SELECT * FROM device_trials WHERE device_fingerprint = ?", (device,))
         trial = cur.fetchone()
+
+        reported_first_seen = first_install_time_utc
+        if reported_first_seen and reported_first_seen > 10_000_000_000:
+            reported_first_seen = reported_first_seen // 1000
+        if not reported_first_seen or reported_first_seen < 1700000000 or reported_first_seen > now + 86400:
+            reported_first_seen = now
+
         if not trial:
-            expires_at = now + 3 * 86400
+            first_seen = reported_first_seen
+            expires_at = first_seen + 3 * 86400
             conn.execute(
                 "INSERT INTO device_trials (device_fingerprint, first_seen_at, expires_at) VALUES (?, ?, ?)",
-                (device, now, expires_at),
+                (device, first_seen, expires_at),
             )
             conn.commit()
+        else:
+            first_seen = min(trial["first_seen_at"], reported_first_seen)
+            expires_at = first_seen + 3 * 86400
+            if first_seen < trial["first_seen_at"]:
+                conn.execute("UPDATE device_trials SET first_seen_at = ?, expires_at = ? WHERE device_fingerprint = ?", (first_seen, expires_at, device))
+                conn.commit()
+
+        if now <= expires_at:
+            days_left = max(1, (expires_at - now + 86399) // 86400)
             return {
                 "status": "TRIAL_ACTIVE",
                 "is_valid": True,
                 "is_vip": False,
                 "is_trial": True,
                 "expires_at": expires_at,
-                "days_left": 3,
+                "days_left": days_left,
                 "server_time_utc": datetime.fromtimestamp(now, timezone.utc).isoformat(),
-                "message": "Đang sử dụng bản Dùng thử 3 ngày miễn phí (còn 3 ngày)",
+                "message": f"Đang sử dụng bản Dùng thử miễn phí (còn {days_left} ngày)",
             }
         else:
-            expires_at = trial["expires_at"]
-            if now <= expires_at:
-                days_left = max(1, (expires_at - now + 86399) // 86400)
-                return {
-                    "status": "TRIAL_ACTIVE",
-                    "is_valid": True,
-                    "is_vip": False,
-                    "is_trial": True,
-                    "expires_at": expires_at,
-                    "days_left": days_left,
-                    "server_time_utc": datetime.fromtimestamp(now, timezone.utc).isoformat(),
-                    "message": f"Đang sử dụng bản Dùng thử miễn phí (còn {days_left} ngày)",
-                }
-            else:
-                return {
-                    "status": "TRIAL_EXPIRED",
-                    "is_valid": False,
-                    "is_vip": False,
-                    "is_trial": False,
-                    "expires_at": expires_at,
-                    "days_left": 0,
-                    "server_time_utc": datetime.fromtimestamp(now, timezone.utc).isoformat(),
-                    "message": "Thời gian dùng thử 3 ngày đã kết thúc. Vui lòng nhập License Key để tiếp tục.",
-                }
+            return {
+                "status": "TRIAL_EXPIRED",
+                "is_valid": False,
+                "is_vip": False,
+                "is_trial": True,
+                "expires_at": expires_at,
+                "days_left": 0,
+                "server_time_utc": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                "message": "Thời gian dùng thử 3 ngày đã kết thúc. Vui lòng nhập License Key để tiếp tục.",
+            }
 
 
 def activate_license(
@@ -317,7 +376,16 @@ def activate_license(
         cur = conn.execute("SELECT * FROM licenses WHERE key_code = ?", (code,))
         row = cur.fetchone()
         if not row:
-            raise ValueError("Mã License Key không tồn tại hoặc đã nhập sai!")
+            is_valid_hmac, hmac_days = verify_license_key_hmac(code)
+            if is_valid_hmac:
+                conn.execute(
+                    "INSERT INTO licenses (key_code, duration_days, status, note) VALUES (?, ?, 'UNACTIVATED', 'HMAC_KEY')",
+                    (code, hmac_days),
+                )
+                conn.commit()
+                row = conn.execute("SELECT * FROM licenses WHERE key_code = ?", (code,)).fetchone()
+            else:
+                raise ValueError("Mã License Key không tồn tại hoặc đã nhập sai!")
 
         status = row["status"]
         bound = row["bound_device"]

@@ -98,6 +98,8 @@ class AuthHandshakeRequest(BaseModel):
     device_fingerprint: str
     installation_id: str | None = None
     public_key_pem: str | None = None
+    first_install_time_utc: int | None = None
+    active_license_key: str | None = None
 
 
 class AuthActivateRequest(BaseModel):
